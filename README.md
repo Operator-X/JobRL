@@ -143,7 +143,7 @@ If a machine breaks down while processing Job $J_i$:
 1. The original completion event `event_id` is invalidated (by clearing `machine.active_event_id`).
 2. The completion time is extended by the repair duration:
    $$t_{\text{new}} = t_{\text{old}} + t_{\text{mttr}}$$
-3. A new `OP_COMPLETED` event is scheduled at $t_{\text{completion\_new}}$.
+3. A new `OP_COMPLETED` event is scheduled at $t_{\text{new}}$.
 
 ### B. Dynamic Job Arrivals
 Job release times are generated using a Poisson process where inter-arrival times are exponential:
