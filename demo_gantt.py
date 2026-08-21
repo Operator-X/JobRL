@@ -102,6 +102,6 @@ def run_agent_and_plot_gantt(model_path: str = "ppo_factory_agent", save_image_p
     plt.close()
 
 if __name__ == "__main__":
-    # Save path in artifacts directory
-    save_path = "/Users/lavlinjaison/.gemini/antigravity-ide/brain/3251c115-ca86-4771-8b4b-c48e5d9ed841/gantt_chart.png"
+    # Save path in current repository directory
+    save_path = "gantt_chart.png"
     run_agent_and_plot_gantt(save_image_path=save_path)

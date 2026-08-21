@@ -152,7 +152,7 @@ A job's release time is $r_i = r_{i-1} + \Delta t_{\text{arrival}}$. The job rem
 
 ### C. Sequence-Dependent Setup Times (SDST)
 When a machine switches from processing Job $A$ to Job $B$, a setup overhead $t_{\text{setup}}$ is added.
-$$t_{\text{setup}} = \begin{cases} 2.0 & \text{if } \text{Job}_B \ne \text{Job}_A \\ 0.0 & \text{if } \text{Job}_B = \text{Job}_A \end{cases}$$
+  $$t_{\text{setup}} = 2.0 \quad \text{if} \quad \text{Job}_B \ne \text{Job}_A \quad \text{else} \quad 0.0$$
 The total machine allocation time becomes $t_{\text{setup}} + p_{i,k}$.
 
 ### D. Input Buffer Capacity Constraints
@@ -191,7 +191,7 @@ The exact optimizer `JssOptimizer` solves the scheduling using Constraint Progra
 
 `JssRLWrapper` modifies the environment to run on standard flat RL policy algorithms:
 1. **Observation Flattening**: Concatenates observation dict values into a 1D numpy array:
-   $$\mathbf{o}_{\text{flat}} = [\mathbf{a}_{\text{mask}} \mathbin{\Vert} \mathbf{x}_{\text{jobs}} \mathbin{\Vert} \mathbf{x}_{\text{machines}}]$$
+     $$\mathbf{o}_{\text{flat}} = [\mathbf{a}_{\text{mask}}, \; \mathbf{x}_{\text{jobs}}, \; \mathbf{x}_{\text{machines}}]$$
 2. **Invalid Action Handling**: During training, RL agents select illegal actions. The wrapper intercepts this, applies a penalty to the reward, and schedules a random valid action to prevent simulation failures.
 
 ---
@@ -279,7 +279,7 @@ model.learn(total_timesteps=10000)
 
 Below is the Gantt chart generated from a trained PPO agent rollout on the $3 \times 3$ Job Shop instance:
 
-![Factory Floor Gantt Chart - PPO Scheduler](/Users/lavlinjaison/.gemini/antigravity-ide/brain/3251c115-ca86-4771-8b4b-c48e5d9ed841/gantt_chart.png)
+![Factory Floor Gantt Chart - PPO Scheduler](gantt_chart.png)
 
 ### Schedule Breakdown
 - **Machine 0**: Job 0 (0.0 to 3.0) $\rightarrow$ Job 1 (3.0 to 5.0) $\rightarrow$ Job 2 (9.76 to 12.76)
