@@ -100,7 +100,7 @@ Tie-breaking at identical timestamps is handled via strict integer priorities:
 ### Action Space Decoding
 - **Simplified Mode**: `Discrete(num_jobs)`.
 - **Flexible Mode**: `Discrete(num_jobs * num_machines)`. Decoded via:
-  $$\text{job\_id} = \lfloor a / m \rfloor, \quad \text{machine\_id} = a \pmod m$$
+  $$\text{job-id} = \lfloor a / m \rfloor, \quad \text{machine-id} = a \pmod m$$
 
 ### Observation Space Dictionary
 ```python
@@ -119,7 +119,7 @@ Normalized by Makespan Upper Bound $T_{\max} = \sum_{i,k} \min(p_{i,k})$ and Max
 2. Remaining work ratio: $\sum_{l=k_i}^{m-1} \min(p_{i,l}) / T_{\max}$.
 3. Current operation duration: $\min(p_{i, k_i}) / \max(p)$.
 4. Next machine index: $\mu(O_{i, k_i}) / |\mathcal{M}|$.
-5. Wait time: $(t_{\text{current}} - t_{\text{last\_action}}) / T_{\max}$.
+5. Wait time: $(t_{\text{current}} - t_{\text{last-action}}) / T_{\max}$.
 
 #### Machine Features
 1. Busy status: `is_busy` (0.0 or 1.0).
@@ -142,7 +142,7 @@ Machine breakdowns are modeled using independent exponential distributions:
 If a machine breaks down while processing Job $J_i$:
 1. The original completion event `event_id` is invalidated (by clearing `machine.active_event_id`).
 2. The completion time is extended by the repair duration:
-   $$t_{\text{completion\_new}} = t_{\text{completion\_old}} + t_{\text{mttr}}$$
+   $$t_{\text{new}} = t_{\text{old}} + t_{\text{mttr}}$$
 3. A new `OP_COMPLETED` event is scheduled at $t_{\text{completion\_new}}$.
 
 ### B. Dynamic Job Arrivals
