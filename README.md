@@ -19,6 +19,7 @@ This platform serves as a high-fidelity digital twin of a factory floor, modelin
 9. [Installation & Setup](#9-installation--setup)
 10. [Usage Quickstart](#10-usage-quickstart)
 11. [Gantt Chart Output Example](#11-gantt-chart-output-example)
+12. [Custom Benchmark & Comparative Analysis (7x6 Instance)](#12-custom-benchmark--comparative-analysis-7x6-instance)
 
 ---
 
@@ -26,15 +27,23 @@ This platform serves as a high-fidelity digital twin of a factory floor, modelin
 
 ```text
 JobRL/
-├── config.py          # Environment and simulator dataclass configurations
-├── engine.py          # Discrete-Event Simulation (DES) state and heapq engine
-├── env.py             # Gymnasium environment wrapper and reward formulation
-├── optimizer.py       # Google OR-Tools CP-SAT exact mathematical solver
-├── train.py           # Observation flattening and SB3 RL wrapper
-├── test_env.py        # Comprehensive unit testing and verification suite
-├── demo_gantt.py      # Rollout script generating schedule visualization
-├── venv/              # Python virtual environment (dependencies)
-└── README.md          # In-depth technical documentation
+├── config.py              # Environment and simulator dataclass configurations
+├── engine.py              # Discrete-Event Simulation (DES) state and heapq engine
+├── env.py                 # Gymnasium environment wrapper and reward formulation
+├── optimizer.py           # Google OR-Tools CP-SAT exact mathematical solver
+├── train.py               # Observation flattening and SB3 RL wrapper
+├── test_env.py            # Comprehensive unit testing and verification suite
+├── demo_gantt.py          # Rollout script generating schedule visualization
+├── custom/                # Custom 7x6 benchmark suite, training & comparison scripts
+│   ├── train_custom.py         # Custom PPO training with loss & reward curves logging
+│   ├── compare_methods.py      # Benchmark comparing OR-Tools, PPO, and SPT heuristic
+│   ├── training_curves.png     # PPO training loss and episode reward curves
+│   ├── custom_gantt_chart.png  # PPO rollout Gantt chart for 7x6 instance
+│   ├── gantt_cpsat.png         # Optimal schedule Gantt chart (OR-Tools CP-SAT)
+│   ├── gantt_ppo.png           # PPO policy Gantt chart
+│   └── gantt_spt.png           # SPT heuristic Gantt chart
+├── venv/                  # Python virtual environment (dependencies)
+└── README.md              # In-depth technical documentation
 ```
 
 ---
@@ -315,3 +324,80 @@ Below is the Gantt chart generated from a trained PPO agent rollout on the $3 \t
 - **Machine 1**: Job 2 (0.0 to 4.0) $\rightarrow$ Job 0 (6.76 to 8.76) $\rightarrow$ Job 1 (9.0 to 10.0)
 - **Machine 2**: Job 1 (5.0 to 9.0) $\rightarrow$ Job 0 (9.0 to 11.0) $\rightarrow$ Job 2 (11.0 to 14.0)
 - **Total Makespan**: 14.00 seconds (under stochastic breakdowns) or 13.00 seconds (optimal static makespan).
+
+---
+
+## 🔬 12. Custom Benchmark & Comparative Analysis (7x6 Instance)
+
+The [`custom/`](custom/) module provides a scaled-up Job Shop Scheduling problem featuring **7 Jobs and 6 Machines** (42 total operations), designed to evaluate and compare exact mathematical programming, rule-based dispatching heuristics, and deep reinforcement learning.
+
+### Instance Specification (`MY_7x6_JOBS`)
+
+Each job consists of 6 sequential operations routed across distinct machines:
+
+```python
+MY_7x6_JOBS = [
+    [(0, 3), (1, 2), (2, 2), (3, 4), (4, 1), (5, 3)],  # Job 0
+    [(1, 2), (0, 4), (3, 3), (2, 2), (5, 1), (4, 5)],  # Job 1
+    [(2, 4), (3, 3), (1, 2), (0, 5), (4, 3), (5, 2)],  # Job 2
+    [(0, 3), (2, 2), (4, 4), (1, 1), (3, 2), (5, 4)],  # Job 3
+    [(3, 5), (1, 1), (0, 3), (5, 2), (2, 4), (4, 2)],  # Job 4
+    [(4, 2), (5, 3), (2, 1), (3, 4), (0, 2), (1, 5)],  # Job 5
+    [(5, 4), (4, 2), (3, 3), (2, 1), (1, 3), (0, 4)],  # Job 6
+]
+```
+
+---
+
+### A. Custom PPO Training & Learning Curves (`train_custom.py`)
+
+The script [`train_custom.py`](custom/train_custom.py) trains a PPO policy over 20,000 steps with custom callback tracking of policy loss and smoothed episode rewards. It then executes a deterministic rollout to produce a full schedule Gantt chart.
+
+**Execute Custom Training:**
+```bash
+python custom/train_custom.py
+```
+
+#### Training Metrics & Reward Progression
+![PPO Training Curves](custom/training_curves.png)
+
+#### 7x6 Schedule Gantt Chart (PPO Rollout)
+![Custom 7x6 Gantt Chart](custom/custom_gantt_chart.png)
+
+---
+
+### B. Multi-Method Benchmark Comparison (`compare_methods.py`)
+
+The script [`compare_methods.py`](custom/compare_methods.py) provides a side-by-side empirical comparison across three fundamental paradigms:
+
+1. **Exact Mathematical Programming (Google OR-Tools CP-SAT)**:
+   - Formulates the exact Constraint Satisfaction Problem using interval variables and disjunctive non-overlap constraints to compute the theoretical global optimum.
+2. **Dispatching Rule Heuristic (Shortest Processing Time - SPT)**:
+   - Evaluates active valid jobs at each decision step and greedily prioritizes the operation with the shortest duration.
+3. **Deep Reinforcement Learning (PPO Policy)**:
+   - Trains an agent with action-masking and invalid action penalization to dynamically schedule jobs under continuous-time event dispatching.
+
+**Execute Comparison Benchmark:**
+```bash
+python custom/compare_methods.py
+```
+
+#### Empirical Performance Results
+
+| Method | Approach | Makespan ($C_{\max}$) | Optimality Gap | Computation / Inference |
+| :--- | :--- | :---: | :---: | :--- |
+| **Google OR-Tools CP-SAT** | Exact Constraint Programming | **28.0s** | **0.0% (Optimal)** | Offline search (10s limit) |
+| **SPT Heuristic** | Greedy Priority Dispatching | **31.0s** | +10.7% | Real-time / Instantaneous |
+| **PPO RL Agent** | Deep Policy Gradient (20k steps) | **33.0s** | +17.9% | Real-time / Neural forward pass |
+
+#### Comparative Gantt Charts
+
+##### 1. Optimal Schedule — Google OR-Tools CP-SAT ($C_{\max} = 28.0\text{s}$)
+![CP-SAT Optimal Schedule](custom/gantt_cpsat.png)
+
+##### 2. Priority Rule Schedule — Shortest Processing Time ($C_{\max} = 31.0\text{s}$)
+![SPT Heuristic Schedule](custom/gantt_spt.png)
+
+##### 3. Learned Policy Schedule — PPO Agent ($C_{\max} = 33.0\text{s}$)
+![PPO Policy Schedule](custom/gantt_ppo.png)
+
