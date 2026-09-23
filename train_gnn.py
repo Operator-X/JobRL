@@ -213,7 +213,7 @@ def train_gnn_ppo(
                 trans["return"] = ret
                 all_transitions.append(trans)
 
-        # 3. PPO Update Epochs
+        # 3. PPO Update Epochs with Mini-Batch Gradient Accumulation
         policy.train()
         advantages = np.array([t["advantage"] for t in all_transitions], dtype=np.float32)
         adv_mean = np.mean(advantages)
@@ -224,12 +224,14 @@ def train_gnn_ppo(
         total_p_loss = 0.0
         total_v_loss = 0.0
         n_updates = 0
+        mini_batch_size = 32
 
         for _ in range(ppo_epochs):
             # Shuffle transitions
             random.shuffle(all_transitions)
+            optimizer.zero_grad()
 
-            for trans in all_transitions:
+            for i, trans in enumerate(all_transitions):
                 act_tensor = torch.tensor([trans["action"]], dtype=torch.long, device=device)
                 adv_tensor = torch.tensor([trans["norm_adv"]], dtype=torch.float32, device=device)
                 ret_tensor = torch.tensor([[trans["return"]]], dtype=torch.float32, device=device)
@@ -253,17 +255,19 @@ def train_gnn_ppo(
                 # Value Loss
                 value_loss = 0.5 * F.mse_loss(new_val, ret_tensor)
 
-                # Total Loss
-                loss = policy_loss + 0.5 * value_loss - 0.01 * entropy.mean()
-
-                optimizer.zero_grad()
+                # Loss scaled by mini_batch_size for gradient accumulation
+                loss = (policy_loss + 0.5 * value_loss - 0.01 * entropy.mean()) / mini_batch_size
                 loss.backward()
-                torch.nn.utils.clip_grad_norm_(policy.parameters(), max_norm=0.5)
-                optimizer.step()
 
                 total_p_loss += policy_loss.item()
                 total_v_loss += value_loss.item()
                 n_updates += 1
+
+                # Step optimizer when mini-batch accumulates
+                if (i + 1) % mini_batch_size == 0 or (i + 1) == len(all_transitions):
+                    torch.nn.utils.clip_grad_norm_(policy.parameters(), max_norm=0.5)
+                    optimizer.step()
+                    optimizer.zero_grad()
 
         update_count += 1
         avg_rew = float(np.mean(batch_rewards))
@@ -272,7 +276,10 @@ def train_gnn_ppo(
         avg_vloss = total_v_loss / max(1, n_updates)
 
         # Zero-shot evaluation on 7x6 benchmark
-        eval_7x6_mks = evaluate_policy_on_instance(policy, BENCHMARK_7x6_JOBS, 6, deterministic=True)
+        eval_7x6_mks = evaluate_policy_on_instance(policy, BENCHMARK_7x6_JOBS, 6, deterministic=True, device=device)
+        eval_5x6_mks = evaluate_policy_on_instance(policy, BENCHMARK_5x6_JOBS, 6, deterministic=True, device=device)
+        eval_4x10_mks = evaluate_policy_on_instance(policy, BENCHMARK_4x10_JOBS, 10, deterministic=True, device=device)
+        
         if eval_7x6_mks < best_7x6_makespan:
             best_7x6_makespan = eval_7x6_mks
             torch.save(policy.state_dict(), os.path.join(save_dir, "best_gnn_model.pt"))
@@ -286,16 +293,18 @@ def train_gnn_ppo(
 
         if update_count % 5 == 0 or current_episode >= total_episodes:
             print(f"Update {update_count:3d} (Ep {current_episode:3d}/{total_episodes}) | "
-                  f"Avg Rew: {avg_rew:7.1f} | Avg Mks: {avg_mks:5.1f} | "
-                  f"7x6 Benchmark: {eval_7x6_mks:4.1f} (Best: {best_7x6_makespan:4.1f}, Opt: {opt_7x6_makespan}) | "
-                  f"Loss(P/V): {avg_ploss:5.3f}/{avg_vloss:5.3f}")
+                  f"Avg Rew: {avg_rew:7.1f} | "
+                  f"7x6: {eval_7x6_mks:4.1f} (Best: {best_7x6_makespan:4.1f}, Opt: {opt_7x6_makespan}) | "
+                  f"5x6: {eval_5x6_mks:4.1f} (Opt: {opt_5x6_makespan}) | "
+                  f"4x10: {eval_4x10_mks:4.1f} (Opt: {opt_4x10_makespan}) | "
+                  f"Loss(P/V): {avg_ploss:5.4f}/{avg_vloss:5.2f}")
 
     # Save latest model
     torch.save(policy.state_dict(), os.path.join(save_dir, "latest_gnn_model.pt"))
     elapsed = time.time() - start_time
     print(f"\nTraining completed in {elapsed:.1f}s.")
 
-    # 4. Generate Training Curves Plot
+    # 4. Generate Enhanced Training Curves Plot
     plot_training_curves(
         history_updates,
         history_rewards,
@@ -320,12 +329,19 @@ def plot_training_curves(
     opt_7x6,
     save_path="gnn_training_curves.png"
 ):
-    """Generates visual performance graphs for GNN training."""
+    """Generates visual performance graphs for GNN training with dual axes and smoothed trends."""
     fig, axes = plt.subplots(2, 2, figsize=(14, 9))
     fig.suptitle("Size-Agnostic GNN / Attention PPO Training Dynamics", fontsize=16, fontweight="bold")
 
-    # Plot 1: Average Episode Reward
-    axes[0, 0].plot(updates, rewards, color="#3B82F6", lw=2, label="Rollout Reward")
+    def moving_avg(data, window=5):
+        if len(data) < window:
+            return data
+        return np.convolve(data, np.ones(window)/window, mode='same')
+
+    # Plot 1: Average Episode Reward with trendline
+    axes[0, 0].plot(updates, rewards, color="#93C5FD", lw=1.2, alpha=0.6, label="Raw Batch Return")
+    if len(rewards) >= 5:
+        axes[0, 0].plot(updates, moving_avg(rewards, 7), color="#2563EB", lw=2.5, label="Trend (Moving Avg)")
     axes[0, 0].set_title("Average Episode Return")
     axes[0, 0].set_xlabel("PPO Updates")
     axes[0, 0].set_ylabel("Reward")
@@ -334,6 +350,8 @@ def plot_training_curves(
 
     # Plot 2: Benchmark 7x6 Makespan vs Optimal
     axes[0, 1].plot(updates, eval_7x6, color="#10B981", lw=2, label="GNN Policy (7x6)")
+    if len(eval_7x6) >= 5:
+        axes[0, 1].plot(updates, moving_avg(eval_7x6, 5), color="#047857", lw=2.5, linestyle=":", label="Trend")
     if opt_7x6 is not None:
         axes[0, 1].axhline(y=opt_7x6, color="#EF4444", linestyle="--", lw=2, label=f"CP-SAT Optimal ({opt_7x6:.0f})")
     axes[0, 1].set_title("Zero-Shot 7x6 Benchmark Makespan")
@@ -343,21 +361,32 @@ def plot_training_curves(
     axes[0, 1].legend()
 
     # Plot 3: Procedural Rollout Average Makespan
-    axes[1, 0].plot(updates, makespans, color="#8B5CF6", lw=2, label="Procedural Makespan")
-    axes[1, 0].set_title("Average Makespan Across Variable Instances")
+    axes[1, 0].plot(updates, makespans, color="#C4B5FD", lw=1.2, alpha=0.6, label="Raw Makespan")
+    if len(makespans) >= 5:
+        axes[1, 0].plot(updates, moving_avg(makespans, 7), color="#7C3AED", lw=2.5, label="Trend (Moving Avg)")
+    axes[1, 0].set_title("Procedural Rollout Makespan (Varying Factory Sizes)")
     axes[1, 0].set_xlabel("PPO Updates")
     axes[1, 0].set_ylabel("Makespan")
     axes[1, 0].grid(True, alpha=0.3)
     axes[1, 0].legend()
 
-    # Plot 4: Losses
-    axes[1, 1].plot(updates, p_loss, color="#F59E0B", lw=2, label="Policy Loss")
-    axes[1, 1].plot(updates, v_loss, color="#EC4899", lw=2, label="Value Loss")
-    axes[1, 1].set_title("Loss Dynamics")
-    axes[1, 1].set_xlabel("PPO Updates")
-    axes[1, 1].set_ylabel("Loss")
-    axes[1, 1].grid(True, alpha=0.3)
-    axes[1, 1].legend()
+    # Plot 4: Losses with Dual Y-Axes so Policy Loss is not squashed!
+    ax_val = axes[1, 1]
+    ax_pol = ax_val.twinx()
+
+    l1 = ax_val.plot(updates, v_loss, color="#EC4899", lw=2, label="Value Loss (left)")
+    l2 = ax_pol.plot(updates, p_loss, color="#F59E0B", lw=2, label="Policy Loss (right)")
+
+    ax_val.set_title("Loss Dynamics (Dual Y-Axis)")
+    ax_val.set_xlabel("PPO Updates")
+    ax_val.set_ylabel("Value Loss (MSE)", color="#EC4899")
+    ax_pol.set_ylabel("Policy Loss (PPO Clipped)", color="#F59E0B")
+    ax_val.grid(True, alpha=0.3)
+
+    # Combined legend
+    lines = l1 + l2
+    labels = [l.get_label() for l in lines]
+    ax_val.legend(lines, labels, loc="upper right")
 
     plt.tight_layout()
     plt.savefig(save_path, dpi=200)
