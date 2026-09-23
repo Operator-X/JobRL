@@ -33,6 +33,7 @@ This platform serves as a high-fidelity digital twin of a factory floor, modelin
 11. [Gantt Chart Output Example](#11-gantt-chart-output-example)
 12. [Custom Benchmark & Comparative Analysis (7x6 Instance)](#12-custom-benchmark--comparative-analysis-7x6-instance)
 13. [Visual Scenario Designer (No-Code Tool for Teams)](#13-visual-scenario-designer-no-code-tool-for-teams)
+14. [Size-Agnostic GNN / Attention Reinforcement Learning (Phase 3)](#14-size-agnostic-gnn--attention-reinforcement-learning-phase-3)
 
 ---
 
@@ -50,6 +51,14 @@ JobRL/
 ├── env.py                     # Gymnasium environment wrapper and reward formulation
 ├── optimizer.py               # Google OR-Tools CP-SAT exact mathematical solver
 ├── train.py                   # Observation flattening and SB3 RL wrapper
+├── gnn_policy.py              # Size-agnostic Bipartite Graph Attention Actor-Critic policy (PyTorch)
+├── variable_env.py            # Size-agnostic procedural environment supporting variable (N, M)
+├── train_gnn.py               # Procedural PPO training pipeline with GAE & auto device (MPS/CUDA/CPU)
+├── compare_gnn.py             # Multi-instance zero-shot benchmark suite vs CP-SAT and heuristics
+├── test_gnn_policy.py         # Unit tests for GNN policy, permutation invariance & variable shapes
+├── checkpoints_gnn/           # Trained size-agnostic GNN policy checkpoints
+├── benchmark_results_gnn/     # Zero-shot benchmark Gantt charts across diverse instance sizes
+├── gnn_training_curves.png    # Training reward and makespan convergence curves
 ├── test_env.py                # Comprehensive unit testing and verification suite
 ├── test_designer_core.py      # Unit tests for designer models, presets & validation
 ├── test_designer_export.py    # Integration tests verifying exported parameters
@@ -478,5 +487,87 @@ optimizer = JssOptimizer(NUM_JOBS, NUM_MACHINES, JOBS_DATA)
 makespan, schedule = optimizer.solve(time_limit_seconds=10.0)
 print(f"Optimal Makespan: {makespan:.1f}s")
 ```
+
+---
+
+## 14. Size-Agnostic GNN / Attention Reinforcement Learning (Phase 3)
+
+Standard deep reinforcement learning agents (like fixed-architecture MLPs) are bound to a static observation dimension and a fixed action space dimension. They cannot process instances where the number of jobs $N$ or machines $M$ changes, nor can they transfer knowledge across different problem scales.
+
+Phase 3 introduces a **Size-Agnostic Bipartite Graph Attention Actor-Critic Policy** (`gnn_policy.py`), a procedural variable-instance environment (`variable_env.py`), and a dedicated PPO training pipeline (`train_gnn.py`) capable of scheduling arbitrary $(N, M)$ instances zero-shot.
+
+```
+                    Variable Problem Instance (N jobs, M machines)
+                                           │
+                                           ▼
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                        Heterogeneous Bipartite Graph State                             │
+├────────────────────────────────────────────────────┬───────────────────────────────────┤
+│ Job Tokens [N, 5]:                                 │ Machine Tokens [M, 4]:            │
+│ - Remaining work ratio                             │ - Busy status (0/1)               │
+│ - Completed operation ratio                        │ - Remaining processing time       │
+│ - Current operation duration                       │ - Total scheduled workload        │
+│ - Next machine index                               │ - Breakdown status (0/1)          │
+│ - Waiting time                                     │                                   │
+└─────────────────────────┬──────────────────────────┴─────────────────┬─────────────────┘
+                          │                                            │
+                          ▼                                            ▼
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                        Bidirectional Cross-Attention Blocks                            │
+│  - Job-to-Machine Attention: Jobs observe availability & queue delays of machines      │
+│  - Machine-to-Job Attention: Machines observe waiting queue pressures and priorities  │
+└─────────────────────────────────────────┬──────────────────────────────────────────────┘
+                                          │
+                  ┌───────────────────────┴───────────────────────┐
+                  ▼                                               ▼
+┌───────────────────────────────────────┐       ┌────────────────────────────────────────┐
+│   Permutation-Equivariant Actor       │       │      Permutation-Invariant Critic      │
+│ Evaluates candidate (Job i, Mach m_i) │       │ Global Pooling [mean, max] over all    │
+│ pairs: logit = MLP([Z_job, Z_mach])   │       │ Job & Machine embeddings -> V(s)       │
+│ Invalid actions masked to -1e9        │       │                                        │
+└───────────────────────────────────────┘       └────────────────────────────────────────┘
+```
+
+### Key Technical Features
+
+1. **Pure PyTorch (Zero C++ Wheel Dependencies)**:
+   - Built entirely on native `torch.nn.MultiheadAttention`, `torch.nn.LayerNorm`, and linear projections.
+   - Eliminates `torch_geometric` compilation issues and runs natively on macOS, Linux, and Windows.
+2. **Permutation Invariance & Equivariance**:
+   - Swapping the input order of jobs yields the exact same state value $V(s)$ from the critic and permutes the action logits identically in the actor.
+3. **Hardware Acceleration (Auto-Detect)**:
+   - Supports **Apple Silicon GPU (`mps`)**, **NVIDIA CUDA / Google Colab (`cuda`)**, and **CPU (`cpu`)** with automated device selection.
+4. **Procedural Training**:
+   - Trains across continuously varying instance topologies ($N \in [3, 8], M \in [3, 6]$) using Generalized Advantage Estimation (GAE).
+
+---
+
+### Zero-Shot Multi-Instance Benchmark Results
+
+A single trained GNN model checkpoint was evaluated across 4 diverse instance configurations without any fine-tuning or retraining:
+
+| Benchmark Instance | Problem Dimensions | Google OR-Tools CP-SAT (Optimal) | GNN Policy (Zero-Shot) | SPT Rule Heuristic | MWKR Rule Heuristic |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **Benchmark 7x6** | $7 \times 6$ | **28.0s** | **30.0s** (+7.1%) | 31.0s (+10.7%) | 33.0s (+17.9%) |
+| **Benchmark 5x6** | $5 \times 6$ | **25.0s** | **29.0s** (+16.0%) | 28.0s (+12.0%) | 29.0s (+16.0%) |
+| **Benchmark 4x10** | $4 \times 10$ | **35.0s** | **37.0s** (+5.7%) | 37.0s (+5.7%) | 37.0s (+5.7%) |
+| **Random 6x5** | $6 \times 5$ | **23.0s** | **34.5s** (+50.0%) | 34.5s (+50.0%) | 37.0s (+60.9%) |
+
+---
+
+### How to Run GNN Training & Benchmarking
+
+```bash
+# 1. Run Unit Tests (Validates tensor shapes, permutation invariance, masking)
+venv/bin/python test_gnn_policy.py
+
+# 2. Train the Size-Agnostic GNN Policy
+# Automatically selects Apple Silicon GPU (mps), NVIDIA CUDA (cuda), or CPU:
+venv/bin/python train_gnn.py --episodes 200 --device auto
+
+# 3. Benchmark Against CP-SAT and Classical Heuristics Across Variable Instances
+venv/bin/python compare_gnn.py
+```
+
 
 
