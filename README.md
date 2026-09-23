@@ -6,7 +6,19 @@ This platform serves as a high-fidelity digital twin of a factory floor, modelin
 
 ---
 
-## 📖 Table of Contents
+> [!TIP]
+> ### 1-Click Quickstart: Launch the Visual Scenario Designer
+> You can launch the interactive scenario designer immediately without touching the command line or manually installing packages:
+> - **macOS**: Double-click [`Launch_Designer.command`](Launch_Designer.command) in Finder.
+> - **Windows**: Double-click [`Launch_Designer.bat`](Launch_Designer.bat) in File Explorer.
+>
+> *These launchers are **self-bootstrapping**: they automatically verify Python 3, create a local virtual environment (`venv`), install all required dependencies from [`requirements.txt`](requirements.txt), and open the web app in your default browser.*
+
+---
+
+## Table of Contents
+
+0. [1-Click Quickstart Launcher](#1-click-quickstart-launch-the-visual-scenario-designer)
 
 1. [Project Directory Layout](#1-project-directory-layout)
 2. [Mathematical Formulations](#2-mathematical-formulations)
@@ -20,35 +32,43 @@ This platform serves as a high-fidelity digital twin of a factory floor, modelin
 10. [Usage Quickstart](#10-usage-quickstart)
 11. [Gantt Chart Output Example](#11-gantt-chart-output-example)
 12. [Custom Benchmark & Comparative Analysis (7x6 Instance)](#12-custom-benchmark--comparative-analysis-7x6-instance)
+13. [Visual Scenario Designer (No-Code Tool for Teams)](#13-visual-scenario-designer-no-code-tool-for-teams)
 
 ---
 
-## 📁 1. Project Directory Layout
+## 1. Project Directory Layout
 
 ```text
 JobRL/
-├── config.py              # Environment and simulator dataclass configurations
-├── engine.py              # Discrete-Event Simulation (DES) state and heapq engine
-├── env.py                 # Gymnasium environment wrapper and reward formulation
-├── optimizer.py           # Google OR-Tools CP-SAT exact mathematical solver
-├── train.py               # Observation flattening and SB3 RL wrapper
-├── test_env.py            # Comprehensive unit testing and verification suite
-├── demo_gantt.py          # Rollout script generating schedule visualization
-├── custom/                # Custom 7x6 benchmark suite, training & comparison scripts
-│   ├── train_custom.py         # Custom PPO training with loss & reward curves logging
-│   ├── compare_methods.py      # Benchmark comparing OR-Tools, PPO, and SPT heuristic
-│   ├── training_curves.png     # PPO training loss and episode reward curves
-│   ├── custom_gantt_chart.png  # PPO rollout Gantt chart for 7x6 instance
-│   ├── gantt_cpsat.png         # Optimal schedule Gantt chart (OR-Tools CP-SAT)
-│   ├── gantt_ppo.png           # PPO policy Gantt chart
-│   └── gantt_spt.png           # SPT heuristic Gantt chart
-├── venv/                  # Python virtual environment (dependencies)
-└── README.md              # In-depth technical documentation
+├── app.py                     # Streamlit visual scenario designer & exporter web app
+├── designer_core.py           # Scenario data models, presets, validation & code exporter
+├── Launch_Designer.command    # 1-click self-bootstrapping launcher for macOS
+├── Launch_Designer.bat        # 1-click self-bootstrapping launcher for Windows
+├── requirements.txt           # Project and UI dependencies
+├── config.py                  # Environment and simulator dataclass configurations
+├── engine.py                  # Discrete-Event Simulation (DES) state and heapq engine
+├── env.py                     # Gymnasium environment wrapper and reward formulation
+├── optimizer.py               # Google OR-Tools CP-SAT exact mathematical solver
+├── train.py                   # Observation flattening and SB3 RL wrapper
+├── test_env.py                # Comprehensive unit testing and verification suite
+├── test_designer_core.py      # Unit tests for designer models, presets & validation
+├── test_designer_export.py    # Integration tests verifying exported parameters
+├── demo_gantt.py              # Rollout script generating schedule visualization
+├── custom/                    # Custom 7x6 benchmark suite, training & comparison scripts
+│   ├── train_custom.py             # Custom PPO training with loss & reward curves logging
+│   ├── compare_methods.py          # Benchmark comparing OR-Tools, PPO, and SPT heuristic
+│   ├── training_curves.png         # PPO training loss and episode reward curves
+│   ├── custom_gantt_chart.png      # PPO rollout Gantt chart for 7x6 instance
+│   ├── gantt_cpsat.png             # Optimal schedule Gantt chart (OR-Tools CP-SAT)
+│   ├── gantt_ppo.png               # PPO policy Gantt chart
+│   └── gantt_spt.png               # SPT heuristic Gantt chart
+├── venv/                      # Python virtual environment (dependencies)
+└── README.md                  # In-depth technical documentation
 ```
 
 ---
 
-## 🔢 2. Mathematical Formulations
+## 2. Mathematical Formulations
 
 ### A. Classic Job Shop Scheduling (JSS)
 
@@ -70,7 +90,7 @@ In FJSP, each operation $O_{i,k}$ can run on alternative machines. The set of co
 
 ---
 
-## ⚙️ 3. DES Engine Architecture
+## 3. DES Engine Architecture
 
 The simulator avoids time-slicing ($\Delta t = 1$) to eliminate idle clock ticks. It utilizes a priority queue managing continuous-time event execution.
 
@@ -111,7 +131,7 @@ Tie-breaking at identical timestamps is handled via strict integer priorities:
 
 ---
 
-## 🌐 4. Gymnasium Environment Contract
+## 4. Gymnasium Environment Contract
 
 ### Action Space Decoding
 
@@ -150,7 +170,7 @@ Normalized by Makespan Upper Bound $T_{\max} = \sum_{i,k} \min(p_{i,k})$ and Max
 
 ---
 
-## ⚡ 5. Digital Twin & Stochastic Mechanics
+## 5. Digital Twin & Stochastic Mechanics
 
 ### A. Machine Failure Modeling (MTTF / MTTR)
 
@@ -190,7 +210,7 @@ This prevents upstream operations from completing and flooding downstream machin
 
 ---
 
-## 🔍 6. OR-Tools CP-SAT Solver Configuration
+## 6. OR-Tools CP-SAT Solver Configuration
 
 The exact optimizer `JssOptimizer` solves the scheduling using Constraint Programming.
 
@@ -216,7 +236,7 @@ The exact optimizer `JssOptimizer` solves the scheduling using Constraint Progra
 
 ---
 
-## 🤖 7. Reinforcement Learning Integration
+## 7. Reinforcement Learning Integration
 
 `JssRLWrapper` modifies the environment to run on standard flat RL policy algorithms:
 
@@ -226,7 +246,7 @@ The exact optimizer `JssOptimizer` solves the scheduling using Constraint Progra
 
 ---
 
-## 📋 8. Class & Method Reference API
+## 8. Class & Method Reference API
 
 ### `config.py` -> `FactoryConfig`
 
@@ -255,7 +275,7 @@ Core simulation state and event scheduler:
 
 ---
 
-## 📦 9. Installation & Setup
+## 9. Installation & Setup
 
 1. **Set Up Virtual Environment**:
    ```bash
@@ -269,7 +289,7 @@ Core simulation state and event scheduler:
 
 ---
 
-## 🚀 10. Usage Quickstart
+## 10. Usage Quickstart
 
 ### Run Unit Tests
 
@@ -312,7 +332,7 @@ model.learn(total_timesteps=10000)
 
 ---
 
-## 📊 11. Gantt Chart Output Example
+## 11. Gantt Chart Output Example
 
 Below is the Gantt chart generated from a trained PPO agent rollout on the $3 \times 3$ Job Shop instance:
 
@@ -327,7 +347,7 @@ Below is the Gantt chart generated from a trained PPO agent rollout on the $3 \t
 
 ---
 
-## 🔬 12. Custom Benchmark & Comparative Analysis (7x6 Instance)
+## 12. Custom Benchmark & Comparative Analysis (7x6 Instance)
 
 The [`custom/`](custom/) module provides a scaled-up Job Shop Scheduling problem featuring **7 Jobs and 6 Machines** (42 total operations), designed to evaluate and compare exact mathematical programming, rule-based dispatching heuristics, and deep reinforcement learning.
 
@@ -400,4 +420,63 @@ python custom/compare_methods.py
 
 ##### 3. Learned Policy Schedule — PPO Agent ($C_{\max} = 33.0\text{s}$)
 ![PPO Policy Schedule](custom/gantt_ppo.png)
+
+---
+
+## 13. Visual Scenario Designer (No-Code Tool for Teams)
+
+For non-coding team members, production engineers, or researchers who need to configure factory layouts and job routines without writing Python code, JobRL includes a visual, interactive web-based **Scenario Designer & Parameter Exporter**.
+
+### Zero-Coding 1-Click Launchers
+
+Team members do not need to use terminal commands or manually install packages. The launchers are **self-bootstrapping** (they automatically check Python, create a virtual environment, install dependencies, and open the default browser):
+
+* **On macOS**: Double-click [`Launch_Designer.command`](Launch_Designer.command) in Finder.
+* **On Windows**: Double-click [`Launch_Designer.bat`](Launch_Designer.bat) in File Explorer.
+* **Via Terminal (Alternative)**:
+  ```bash
+  streamlit run app.py
+  ```
+
+---
+
+### Key Capabilities
+
+1. **Work Centers & Machine Groups**:
+   - Define named factory work centers (e.g. *CNC Lathes*, *Primary Milling*, *Quality Control*).
+   - In **Flexible Mode (FJSP)**, assign operations to entire work centers rather than rigid individual machines.
+2. **Interactive Job Routing Builder**:
+   - Visually add, reorder, or delete operations per job with custom duration sliders.
+   - 1-click presets (`3x3 Toy`, `7x6 Custom`) and a **procedural random generator** for arbitrary $(J, M)$ instances.
+3. **Digital Twin Floor Physics**:
+   - Configure stochastic machine breakdowns ($\lambda_{\text{failure}}, \mu_{\text{repair}}$), Poisson dynamic arrivals, setup times (SDST), and buffer limits.
+4. **Pre-Simulation Visual Inspection**:
+   - **Machine Workload Balance**: Dynamic bar chart revealing bottleneck stations before running.
+   - **Process Flow Table**: Full routing sequence per job.
+   - *(Note: Simulation execution and Gantt charts are left to the team's numerical scripts).*
+5. **1-Click Parameter Export**:
+   - Exports clean, importable parameter files (`scenario_parameters.py` and `scenario.json`).
+
+---
+
+### How Team Members Use Exported Scenarios
+
+Once a scenario is exported as `scenario_parameters.py`, team members load it directly into their numerical solving and simulation scripts with 4 lines of code:
+
+```python
+from config import FactoryConfig
+from engine import JssEngine
+from optimizer import JssOptimizer
+from scenario_parameters import NUM_JOBS, NUM_MACHINES, JOBS_DATA, FACTORY_CONFIG
+
+# 1. Initialize the Discrete-Event Simulation Engine
+cfg = FactoryConfig(**FACTORY_CONFIG)
+engine = JssEngine(NUM_JOBS, NUM_MACHINES, JOBS_DATA, config=cfg)
+
+# 2. Run numerical methods, dispatching heuristics, or CP-SAT exact optimizer:
+optimizer = JssOptimizer(NUM_JOBS, NUM_MACHINES, JOBS_DATA)
+makespan, schedule = optimizer.solve(time_limit_seconds=10.0)
+print(f"Optimal Makespan: {makespan:.1f}s")
+```
+
 
